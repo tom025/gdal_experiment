@@ -1,0 +1,23 @@
+plugins {
+  id 'base'
+}
+
+task venv(
+    type: Exec,
+    group: 'Python',
+    description: 'Create python3.6 virtual environment'
+) {
+  final venvDir = "$buildDir/venv"
+
+  outputs.dir(venvDir)
+
+  commandLine = [
+      '/usr/local/bin/python3', '-m', 'venv', venvDir
+  ]
+}
+
+assemble {
+  dependsOn(
+      venv
+  )
+}
