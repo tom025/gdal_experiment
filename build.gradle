@@ -1,3 +1,6 @@
+import static org.gradle.api.logging.LogLevel.*
+import static org.gradle.api.logging.LogLevel.INFO
+
 plugins {
   id 'base'
 }
@@ -31,6 +34,10 @@ task installSystemRequirements(
     description: 'install sytem requirements (c projects/bindings like gdal 2)'
 ) {
   executable = 'scripts/install_system_requirements'
+  outputs.dirs(
+      '/usr/local/opt/gdal2',
+      '/usr/local/opt/gdal2-python'
+  )
 }
 
 task venv(
@@ -61,33 +68,14 @@ task writeSetupRequirements(
 }
 
 task installSetupRequirements(
-    type: Exec,
+    type: InstallRequirements,
     group: 'Python',
     description: 'install project setup requirements from file',
     dependsOn: [
         writeSetupRequirements
     ]
 ) {
-  final pip = "$buildDir/venv/bin/pip"
-  final site_packages = fileTree("$buildDir/venv/lib/python3.6/site-packages")
-
-  final requirements = configurations.setup.dependencies
-
-  inputs.file(setup_requirements)
-
-  requirements.each { req ->
-    outputs.files(
-        site_packages.include(
-            "${req.name}/**/*",
-            "${req.name}-*.dist-info/**/*"
-        )
-    )
-  }
-  logging.captureStandardOutput LogLevel.INFO
-
-  commandLine = [
-      pip, 'install', '--requirement', setup_requirements.path
-  ]
+  requirementsFile = setup_requirements
 }
 
 task writeInstallRequirements(
@@ -100,42 +88,16 @@ task writeInstallRequirements(
 }
 
 task installInstallRequirements(
-    type: Exec,
-    group: 'Python',
+    type: InstallRequirements,
     description: 'install project install requirements from file',
     dependsOn: [
         writeInstallRequirements
     ]
 ) {
-  final pip = "$buildDir/venv/bin/pip"
-  final site_packages = fileTree("$buildDir/venv/lib/python3.6/site-packages")
-
-  final requirements = configurations.install.dependencies
-
-  inputs.file(install_requirements)
-
-  requirements.each { req ->
-    outputs.files(
-        site_packages.include(
-            "${req.name}/**/*",
-            "${req.name}-*.dist-info/**/*"
-        )
-    )
-  }
-  logging.captureStandardOutput LogLevel.INFO
-
-  final PATH = environment.PATH
-  environment(
-      'PATH',
-      [
-          '/usr/local/opt/gdal2-python/bin',
-          '/usr/local/opt/gdal2/bin',
-          PATH
-      ].join(":")
-  )
-
-  commandLine = [
-      pip, 'install', '--requirement', install_requirements.path
+  requirementsFile = install_requirements
+  pathAdditions = [
+      '/usr/local/opt/gdal2-python/bin',
+      '/usr/local/opt/gdal2/bin',
   ]
 }
 
@@ -160,6 +122,37 @@ class RequirementsFile extends DefaultTask {
       requirements.forEach { req ->
         out.println("${req.name}${req.version}")
       }
+    }
+  }
+}
+
+class InstallRequirements extends DefaultTask {
+  String group = 'Python'
+
+  private String buildDir = project.buildDir
+  String pip = "$buildDir/venv/bin/pip"
+
+  InstallRequirements() {
+    logging.captureStandardOutput(INFO)
+    logging.captureStandardError(ERROR)
+  }
+
+  List<String> pathAdditions = []
+
+  @InputFile
+  File requirementsFile
+
+  @OutputFiles
+  FileCollection sitePackages = project.fileTree("$buildDir/venv/lib/python3.6/site-packages")
+
+  @TaskAction
+  void installRequirements() {
+    project.exec {
+      commandLine = [
+          pip, 'install', '--requirement', requirementsFile.path
+      ]
+      final String PATH = environment.PATH
+      environment('PATH', pathAdditions.plus(PATH).join(':'))
     }
   }
 }
