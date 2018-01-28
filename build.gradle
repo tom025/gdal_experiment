@@ -1,4 +1,4 @@
-import static org.gradle.api.logging.LogLevel.*
+import static org.gradle.api.logging.LogLevel.ERROR
 import static org.gradle.api.logging.LogLevel.INFO
 
 plugins {
@@ -55,50 +55,38 @@ task venv(
   ]
 }
 
-final setup_requirements = file('requirements/setup.txt')
-final install_requirements = file('requirements/install.txt')
-
-task writeSetupRequirements(
-    type: RequirementsFile,
-    description: 'write python setup requirements to file',
-    dependsOn: venv
-) {
-  requirements = configurations.setup.dependencies
-  requirementsFile = setup_requirements
-}
-
-task installSetupRequirements(
-    type: InstallRequirements,
-    group: 'Python',
-    description: 'install project setup requirements from file',
-    dependsOn: [
-        writeSetupRequirements
+final configurationPathAdditions = [
+    (configurations.install): [
+        '/usr/local/opt/gdal2-python/bin',
+        '/usr/local/opt/gdal2/bin',
     ]
-) {
-  requirementsFile = setup_requirements
-}
+].withDefault { [] }
 
-task writeInstallRequirements(
-    type: RequirementsFile,
-    description: 'write project install requirements to file',
-    dependsOn: venv
-) {
-  requirements = configurations.install.dependencies
-  requirementsFile = install_requirements
-}
+configurations
+    .findAll { !['default', 'archive'].contains(it.name.toLowerCase()) }
+    .each { configuration ->
+  final name = configuration.name
+  final reqFile = file("requirements/${name}.txt")
 
-task installInstallRequirements(
-    type: InstallRequirements,
-    description: 'install project install requirements from file',
-    dependsOn: [
-        writeInstallRequirements
-    ]
-) {
-  requirementsFile = install_requirements
-  pathAdditions = [
-      '/usr/local/opt/gdal2-python/bin',
-      '/usr/local/opt/gdal2/bin',
-  ]
+  final writeTask = tasks.create(
+      type: RequirementsFile,
+      name: "write${name.capitalize()}Requirements",
+      description: "write python ${name} requirements to file",
+      dependsOn: venv
+  ) {
+    requirements = configuration.dependencies
+    requirementsFile = reqFile
+  }
+
+  tasks.create(
+      type: InstallRequirements,
+      name: "install${name.capitalize()}Requirements",
+      description: "install project ${name} requirements from file",
+      dependsOn: writeTask
+  ) {
+    requirementsFile = reqFile
+    pathAdditions = configurationPathAdditions.get(configuration)
+  }
 }
 
 assemble {
