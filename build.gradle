@@ -2,6 +2,23 @@ plugins {
   id 'base'
 }
 
+configurations {
+  setup
+}
+
+dependencies {
+  setup(
+      group: 'pypi',
+      name: 'setuptools',
+      version: '>=38.4.0'
+  )
+  setup(
+      group: 'pypi',
+      name: 'flake8',
+      version: '>=3.5.0'
+  )
+}
+
 task venv(
     type: Exec,
     group: 'Python',
@@ -16,8 +33,59 @@ task venv(
   ]
 }
 
+final setup_requirements = file('requirements/setup.txt')
+
+task writeSetupRequirements(
+    group: 'Python',
+    description: 'write python setup requirements to file',
+    dependsOn: venv
+) {
+  final requirements = configurations.setup.dependencies
+
+  outputs.file(setup_requirements)
+
+  doLast {
+    setup_requirements.withWriter { out ->
+      requirements.forEach { req ->
+        out.println("${req.name}${req.version}")
+      }
+    }
+  }
+}
+
+task installSetupRequirements(
+    type: Exec,
+    group: 'Python',
+    description: 'install project setup requirements from file',
+    dependsOn: [
+        writeSetupRequirements
+    ]
+) {
+  final pip = "$buildDir/venv/bin/pip"
+  final site_packages = fileTree("$buildDir/venv/lib/python3.6/site-packages")
+
+  final requirements = configurations.setup.dependencies
+
+  inputs.file(setup_requirements)
+
+  requirements.each { req ->
+    outputs.files(
+        site_packages.include(
+            "${req.name}/**/*",
+            "${req.name}-*.dist-info/**/*"
+        )
+    )
+  }
+  logging.captureStandardOutput LogLevel.INFO
+
+  commandLine = [
+      pip, 'install', '--requirement', setup_requirements.path
+  ]
+}
+
 assemble {
   dependsOn(
-      venv
+      installSetupRequirements
   )
 }
+

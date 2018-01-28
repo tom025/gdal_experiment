@@ -3,3 +3,6 @@ gradle/wrapper/gradle-wrapper.jar
 build/
 .idea/workspace.xml
 *.iml
+.eggs/
+requirements/*
+*.egg-info/*
