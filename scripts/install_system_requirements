@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e
+
+function refresh_path {
+    hash -r
+}
+
+function ensure_macOS {
+  if [[ $(uname -s) != 'Darwin' ]]; then
+    echo 'This only works on a macOS system'
+    exit 1
+  fi
+}
+
+function brew_tap {
+  local tap=$1
+  if brew tap | grep $tap > /dev/null; then
+    echo "Tap: $tap is already tapped"
+  else
+    brew tap $tap
+  fi
+}
+
+function brew_install {
+  local name=$1
+  shift
+  if brew ls --versions $name > /dev/null; then
+    echo "Brew package \"$name\" is already installed"
+  else
+    brew install $name $@
+    refresh_path
+  fi
+}
+
+function main {
+  ensure_macOS
+  brew_tap osgeo/osgeo4mac
+  brew_install gdal2-python
+}
+
+main

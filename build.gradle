@@ -4,6 +4,7 @@ plugins {
 
 configurations {
   setup
+  install
 }
 
 dependencies {
@@ -17,12 +18,26 @@ dependencies {
       name: 'flake8',
       version: '>=3.5.0'
   )
+  install(
+      group: 'pypi',
+      name: 'GDAL',
+      version: "==2.2.3"
+  )
+}
+
+task installSystemRequirements(
+    type: Exec,
+    group: 'System Requirements',
+    description: 'install sytem requirements (c projects/bindings like gdal 2)'
+) {
+  executable = 'scripts/install_system_requirements'
 }
 
 task venv(
     type: Exec,
     group: 'Python',
-    description: 'Create python3.6 virtual environment'
+    description: 'Create python3.6 virtual environment',
+    dependsOn: installSystemRequirements
 ) {
   final venvDir = "$buildDir/venv"
 
@@ -34,6 +49,7 @@ task venv(
 }
 
 final setup_requirements = file('requirements/setup.txt')
+final install_requirements = file('requirements/install.txt')
 
 task writeSetupRequirements(
     group: 'Python',
@@ -83,9 +99,68 @@ task installSetupRequirements(
   ]
 }
 
+task writeInstallRequirements(
+    group: 'Python',
+    description: 'write project install requirements to file',
+    dependsOn: venv
+) {
+  final requirements = configurations.install.dependencies
+
+  outputs.file(install_requirements)
+
+  doLast {
+    install_requirements.withWriter { out ->
+      requirements.forEach { req ->
+        out.println("${req.name}${req.version}")
+      }
+    }
+  }
+}
+
+task installInstallRequirements(
+    type: Exec,
+    group: 'Python',
+    description: 'install project install requirements from file',
+    dependsOn: [
+        writeInstallRequirements
+    ]
+) {
+  final pip = "$buildDir/venv/bin/pip"
+  final site_packages = fileTree("$buildDir/venv/lib/python3.6/site-packages")
+
+  final requirements = configurations.install.dependencies
+
+  inputs.file(install_requirements)
+
+  requirements.each { req ->
+    outputs.files(
+        site_packages.include(
+            "${req.name}/**/*",
+            "${req.name}-*.dist-info/**/*"
+        )
+    )
+  }
+  logging.captureStandardOutput LogLevel.INFO
+
+  final PATH = environment.PATH
+  environment(
+      'PATH',
+      [
+          '/usr/local/opt/gdal2-python/bin',
+          '/usr/local/opt/gdal2/bin',
+          PATH
+      ].join(":")
+  )
+
+  commandLine = [
+      pip, 'install', '--requirement', install_requirements.path
+  ]
+}
+
 assemble {
   dependsOn(
-      installSetupRequirements
+      installSetupRequirements,
+      installInstallRequirements
   )
 }
 
