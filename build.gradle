@@ -52,21 +52,12 @@ final setup_requirements = file('requirements/setup.txt')
 final install_requirements = file('requirements/install.txt')
 
 task writeSetupRequirements(
-    group: 'Python',
+    type: RequirementsFile,
     description: 'write python setup requirements to file',
     dependsOn: venv
 ) {
-  final requirements = configurations.setup.dependencies
-
-  outputs.file(setup_requirements)
-
-  doLast {
-    setup_requirements.withWriter { out ->
-      requirements.forEach { req ->
-        out.println("${req.name}${req.version}")
-      }
-    }
-  }
+  requirements = configurations.setup.dependencies
+  requirementsFile = setup_requirements
 }
 
 task installSetupRequirements(
@@ -100,21 +91,12 @@ task installSetupRequirements(
 }
 
 task writeInstallRequirements(
-    group: 'Python',
+    type: RequirementsFile,
     description: 'write project install requirements to file',
     dependsOn: venv
 ) {
-  final requirements = configurations.install.dependencies
-
-  outputs.file(install_requirements)
-
-  doLast {
-    install_requirements.withWriter { out ->
-      requirements.forEach { req ->
-        out.println("${req.name}${req.version}")
-      }
-    }
-  }
+  requirements = configurations.install.dependencies
+  requirementsFile = install_requirements
 }
 
 task installInstallRequirements(
@@ -164,3 +146,20 @@ assemble {
   )
 }
 
+class RequirementsFile extends DefaultTask {
+  String group = 'Python'
+
+  DependencySet requirements
+
+  @OutputFile
+  File requirementsFile
+
+  @TaskAction
+  void writeRequirements() {
+    requirementsFile.withWriter { out ->
+      requirements.forEach { req ->
+        out.println("${req.name}${req.version}")
+      }
+    }
+  }
+}
